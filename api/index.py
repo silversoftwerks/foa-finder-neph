@@ -36,10 +36,18 @@ from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from flask import Flask, request, g
-
+from flask_caching import Cache
 
 pd.options.mode.chained_assignment = None
+
+
+# ...
+
 app = Flask(__name__)
+# Configure Cache
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+
+# ...
 
 
 def get_xml_url_and_filename():
@@ -293,6 +301,7 @@ def send_to_slack(slack_text):
 
 
 @app.route('/search')
+@cache.cached(timeout=300)
 def search():
     filter = request.args.get('filter', default='', type=str)
     # filter by keywords
