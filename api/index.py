@@ -121,25 +121,9 @@ def soupify(xml):
     return soup
 
 xml = None
-day_to_try = datetime.today()
-zipped_filepath = 'GrantsDBExtract{}v2.zip'.format(
-    day_to_try.strftime('%Y%m%d'))
-try:
-    file_found = open(zipped_filepath, 'r')
-    print('file found')
-except Exception as error:
-    file_found = None
-if file_found is None:
-    print('file not found')
-    # get url and filename of the latest database available for extraction
-    url, filename = get_xml_url_and_filename()
-    print(url, filename)
-    # download the database zip file into a buffer
-    buffer = download_file_from_url(url)
-    # get beautiful soup object from parsed buffer
-    xml = unzip(buffer)
+
     
-soup = soupify(xml)
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%% unzip and parse file %%%%%%%%%%%%%%%%%%%%%
 
@@ -165,7 +149,7 @@ def soup_to_df(soup):
 
 
 # get full dataframe of all FOAs
-dff = soup_to_df(soup)
+
 
 
 # %%%%%%%%%%%%%%%%%% filter by dates and keywords %%%%%%%%%%%%%%%%%%%%%%%%
@@ -224,15 +208,6 @@ def filter_by_keywords(df, filter):
 
     return df
 
-
-# include only recently updated FOAs
-df = dff[[is_recent(i) for i in dff['lastupdateddate']]]
-
-# include only FOAs which are not closed
-df = df[[is_open(i) for i in df['closedate']]]
-
-# sort by newest FOAs at the top
-df = sort_by_recent_updates(df)
 
 
 # %%%%%%%%%%%%%%% format string message for Slack %%%%%%%%%%%%%%%%%%%%%%
@@ -298,13 +273,35 @@ def send_to_slack(slack_text):
 
 # send text to slack
 # send_to_slack(slack_text)
+@cache.cached(timeout=3600, key_prefix='df_data')  # cache for 1 hour
+def get_dataframe():
+    day_to_try = datetime.today()
+    zipped_filepath = 'GrantsDBExtract{}v2.zip'.format(day_to_try.strftime('%Y%m%d'))
+    try:
+        file_found = open(zipped_filepath, 'r')
+        print('file found')
+    except Exception as error:
+        file_found = None
+    if file_found == None:
+        print('file not found')
+        url, filename = get_xml_url_and_filename()
+        print(url, filename)
+        download_file_from_url(url, filename)
+        zipped_filepath = filename
 
+    xml = unzip(zipped_filepath)
+    soup = soupify(xml)
+    dff = soup_to_df(soup)
+    df = dff[[is_recent(i) for i in dff['lastupdateddate']]]
+    df = df[[is_open(i) for i in df['closedate']]]
+    df = sort_by_recent_updates(df)
+    return df
+
+df = get_dataframe()
 
 @app.route('/search')
-@cache.cached(timeout=300)
 def search():
     filter = request.args.get('filter', default='', type=str)
-    # filter by keywords
     res = filter_by_keywords(df, filter).to_json()
-
     return res
+
