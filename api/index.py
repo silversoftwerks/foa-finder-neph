@@ -35,7 +35,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
-from flask import Flask, request, g
+from flask import Flask, request
 from flask_caching import Cache
 
 pd.options.mode.chained_assignment = None
@@ -286,10 +286,10 @@ def get_dataframe():
         print('file not found')
         url, filename = get_xml_url_and_filename()
         print(url, filename)
-        download_file_from_url(url, filename)
+        buffer = download_file_from_url(url)
         zipped_filepath = filename
 
-    xml = unzip(zipped_filepath)
+    xml = unzip(buffer)
     soup = soupify(xml)
     dff = soup_to_df(soup)
     df = dff[[is_recent(i) for i in dff['lastupdateddate']]]
