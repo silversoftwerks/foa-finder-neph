@@ -76,39 +76,31 @@ def get_xml_url_and_filename():
 # %%%%%%%%%%%%%%%%%%%% download the database %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-def download_file_from_url(url, filename):
-    """Download a file from a URL"""
-    # remove all previously-downloaded zip files
-    [os.remove(f) for f in os.listdir() if f.endswith(".zip")]
-    # ping the dataset url
+def download_file_from_url(url):
+    """Download a file from a URL into a BytesIO buffer."""
     response = requests.get(url, stream=True, timeout=5)
-    # print('response', response)
 
     # if file url is found
     if response.status_code == 200:
-        print('downloading')
-        handle = open(filename, "wb")
+        buffer = io.BytesIO()
         for chunk in response.iter_content(chunk_size=512):
             if chunk:  # filter out keep-alive new chunks
-                handle.write(chunk)
-        handle.close()
-        time.sleep(3)
-        print('Database successfully downloaded')
+                buffer.write(chunk)
+        buffer.seek(0)  # Reset buffer position for reading
+        return buffer
     # if file url is not found
     else:
         print('URL does not exist')
+        return None
 
-
-def unzip(filename):
-    """Unzip a zip file and parse it using beautiful soup"""
-
+def unzip(buffer):
+    """Unzip a zip file from a BytesIO buffer and parse it using beautiful soup."""
     xml = None
     # unzip raw file
-    with zipfile.ZipFile(filename, "r") as z:
-        xml = io.BytesIO(z.read(filename.replace('.zip', '.xml')))
-
+    with zipfile.ZipFile(buffer, "r") as z:
+        xml_file_name = z.namelist()[0]
+        xml = io.BytesIO(z.read(xml_file_name))
     return xml
-
 
 def soupify(xml):
     # parse as tree and convert to string
@@ -120,7 +112,7 @@ def soupify(xml):
     print('Database unzipped')
     return soup
 
-
+xml = None
 day_to_try = datetime.today()
 zipped_filepath = 'GrantsDBExtract{}v2.zip'.format(
     day_to_try.strftime('%Y%m%d'))
@@ -129,17 +121,16 @@ try:
     print('file found')
 except Exception as error:
     file_found = None
-if (file_found == None):
+if file_found is None:
     print('file not found')
     # get url and filename of the latest database available for extraction
     url, filename = get_xml_url_and_filename()
     print(url, filename)
-    # download the database zip file
-    download_file_from_url(url, filename)
-    # get beautiful soup object from parsed zip file
-    zipped_filepath = filename
-
-xml = unzip(zipped_filepath)
+    # download the database zip file into a buffer
+    buffer = download_file_from_url(url)
+    # get beautiful soup object from parsed buffer
+    xml = unzip(buffer)
+    
 soup = soupify(xml)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%% unzip and parse file %%%%%%%%%%%%%%%%%%%%%
