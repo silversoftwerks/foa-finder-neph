@@ -15,5 +15,4 @@ lxml
 flask
 numpy
 pandas
-Flask-Caching
-
+flask-caching
